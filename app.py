@@ -1,47 +1,50 @@
 import streamlit as st
 import yfinance as yf
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+import plotly.graph_objects as go
+from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(layout="wide")
-st.title("🚀 Sky Boy AI - Advanced Machine Learning Trader")
+st.title("🚀 Sky Boy AI - Live Pro Trader")
 
-# 1. Company Selection
-ticker_symbol = st.selectbox("Company Select Karo:", ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "SBIN.NS"])
+# Auto-refresh har 10 seconds mein (Live feel ke liye)
+st_autorefresh(interval=10000, key="datarefresh")
 
-# 2. Data Loading (30 Years limit for history)
-@st.cache_data
-def get_data(symbol):
-    data = yf.download(symbol, period="5y", interval="1d") # 30y bahut slow hai, 5y fast hai
-    data['Returns'] = data['Close'].pct_change()
-    data['Target'] = (data['Close'].shift(-1) > data['Close']).astype(int)
-    return data.dropna()
+stocks = {"Reliance": "RELIANCE.NS", "TCS": "TCS.NS", "HDFC": "HDFCBANK.NS"}
+ticker = st.selectbox("Company:", list(stocks.keys()))
+symbol = stocks[ticker]
 
-df = get_data(ticker_symbol)
+# Data Fetching
+df = yf.download(symbol, period="5d", interval="5m")
 
-# 3. ML Model: Galti se Seekhne wala Logic
-model = RandomForestClassifier(n_estimators=100, min_samples_split=10, random_state=1)
-train = df.iloc[:-100]
-test = df.iloc[-100:]
-predictors = ['Close', 'Volume']
-model.fit(train[predictors], train['Target'])
+if not df.empty:
+    # 1. Digital Candlestick Chart
+    fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
+    fig.update_layout(title=f"Live Chart: {ticker}", xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
 
-# 4. Prediction
-last_data = df.iloc[-1:][predictors]
-prediction = model.predict(last_data)
-
-st.subheader("🤖 AI Learning & Prediction")
-if prediction == 1:
-    st.success("📈 Model Prediction: UP (Buy Zone)")
+    # 2. Prediction (Simple Logic)
+    last_price = df['Close'].iloc[-1]
+    prev_price = df['Close'].iloc[-2]
+    signal = "UP" if last_price > prev_price else "DOWN"
+    
+    st.subheader(f"🤖 AI Signal: {signal}")
+    
+    # 3. Accuracy Tracker (Galti se seekhna)
+    if 'wins' not in st.session_state: st.session_state.wins = 0
+    if 'losses' not in st.session_state: st.session_state.losses = 0
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("AI Sahi Tha"):
+            st.session_state.wins += 1
+    with col2:
+        if st.button("AI Galt Tha"):
+            st.session_state.losses += 1
+            
+    st.write(f"📊 Accuracy: Sahi: {st.session_state.wins} | Galt: {st.session_state.losses}")
+    
+    # 4. Candlestick Patterns explain (Learning)
+    st.write("---")
+    st.info("💡 Pro Tip: Green candle = Buyers, Red candle = Sellers.")
 else:
-    st.error("📉 Model Prediction: DOWN (Wait Zone)")
-
-# 5. Galti Record (Self-Learning Memory)
-if 'errors' not in st.session_state: st.session_state.errors = 0
-if st.button("AI Galt Tha?"):
-    st.session_state.errors += 1
-    st.warning(f"AI apni galti note kar raha hai... Total errors learned: {st.session_state.errors}")
-
-st.write("---")
-st.write("💡 Note: Ye AI Pattern recognition use karta hai. Candle chart dekhne ke liye trading platform use karein.")
+    st.warning("Data load ho raha hai...")
