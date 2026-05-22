@@ -1,32 +1,40 @@
 import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
+import time
 
 st.set_page_config(layout="wide")
-st.title("🧠 Sky Boy AI - All India Stocks Predictor")
+st.title("🧠 Sky Boy AI - Pro Trader Dashboard")
 
-stocks = {"Reliance": "RELIANCE.NS", "TCS": "TCS.NS", "HDFC Bank": "HDFCBANK.NS", "Infosys": "INFY.NS", "SBI": "SBIN.NS"}
-ticker_name = st.selectbox("Company Chuno:", list(stocks.keys()))
-symbol = stocks[ticker_name]
+# 1-minute auto-refresh
+st.empty()
+if "last_refresh" not in st.session_state:
+    st.session_state.last_refresh = time.time()
 
+stocks = {"Reliance": "RELIANCE.NS", "TCS": "TCS.NS", "HDFC": "HDFCBANK.NS", "Infosys": "INFY.NS", "SBI": "SBIN.NS"}
+ticker = st.selectbox("Company Select Karo:", list(stocks.keys()))
+symbol = stocks[ticker]
+
+# 30 Saal ka data
 df = yf.download(symbol, period="30y", interval="1d")
 
+# Candlestick Chart
 fig = go.Figure(data=[go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'])])
-fig.update_layout(title=f"{ticker_name} - 30 Saal ka Historical Chart", xaxis_rangeslider_visible=False)
+fig.update_layout(title=f"{ticker} - Analysis", xaxis_rangeslider_visible=False)
 st.plotly_chart(fig, use_container_width=True)
 
-st.subheader("🔮 5-Minute Aage Kya Hoga?")
+# 5-Minute Forecast
+st.subheader("🔮 Agle 5 Minute Ka Signal")
 data_5m = yf.download(symbol, period="1d", interval="5m")
-
 if len(data_5m) > 1:
-    last_price = data_5m['Close'].iloc[-1]
-    prev_price = data_5m['Close'].iloc[-2]
-
-    if last_price > prev_price:
-        st.success(f"Signal: 📈 UP! Current: {last_price:.2f}")
+    diff = data_5m['Close'].iloc[-1] - data_5m['Close'].iloc[-2]
+    target = data_5m['Close'].iloc[-1] + diff
+    
+    if diff > 0:
+        st.success(f"📈 Signal: UP | Target Price: {target:.2f}")
     else:
-        st.error(f"Signal: 📉 DOWN! Current: {last_price:.2f}")
+        st.error(f"📉 Signal: DOWN | Target Price: {target:.2f}")
 
-st.write("---")
-if st.button("AI Galt Tha?"):
-    st.warning("Galti record kar li gayi hai. AI update ho raha hai...")
+# Auto-refresh
+time.sleep(60)
+st.rerun()
